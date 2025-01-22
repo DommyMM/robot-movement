@@ -1,7 +1,7 @@
 <script lang="ts">
     import Sortable from 'sortablejs';
     import { onMount } from 'svelte';
-    import { commands, getCommandById, executeCommands, character, activeCommandIndex } from '$lib/commands';
+    import { commands, getCommandById, executeCommands, character, activeCommandIndex, type Command, type LoopCommand } from '$lib/commands';
     import { darkMode } from '$lib/theme';
     import Grid from '$lib/Grid.svelte';
 
@@ -60,42 +60,117 @@
                 }
             },
             onRemove: function(evt) {
-                const removedIndex = evt.oldIndex;
-                programBlocks = programBlocks.filter((_, i) => i !== removedIndex);
+                if (typeof evt.oldIndex !== 'undefined') {
+                    const removedIndex = evt.oldIndex;
+                    const removedCommand = getCommandById(programBlocks[removedIndex]);
+                    if (removedCommand?.type === 'loop') {
+                        (removedCommand as LoopCommand).children = [];
+                    }
+                    programBlocks = programBlocks.filter((_, i) => i !== removedIndex);
+                }
             }
         });
     });
 
-    // Update program area when programBlocks changes
     $: if (programArea && programBlocks) {
-        while (programArea.firstChild) {
-            programArea.firstChild.remove();
-        }
-        programBlocks.forEach((blockId, index) => {
-            const command = getCommandById(blockId);
-            if (command) {
-                const div = document.createElement('div');
-                div.className = `${command.color} text-white p-4 rounded-lg mb-2 transition-all duration-200`;
-                div.setAttribute('data-command', command.id);
-                div.setAttribute('data-index', index.toString());
-                div.textContent = command.label;
-                
-                // Subscribe to activeCommandIndex changes
-                const unsubscribe = activeCommandIndex.subscribe(activeIndex => {
-                    if (activeIndex === index) {
-                        div.classList.add('command-active');
-                    } else {
-                        div.classList.remove('command-active');
-                    }
-                });
-                
-                programArea.appendChild(div);
-            }
-        });
+    while (programArea.firstChild) {
+        programArea.firstChild.remove();
     }
+    programBlocks.forEach((blockId, index) => {
+        const command = getCommandById(blockId);
+        if (command) {
+            const div = document.createElement('div');
+            
+            if (command.type === 'loop') {
+                div.className = `${command.color} p-4 rounded-lg mb-2 transition-all duration-200`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-2 text-white">
+                        <span>Repeat</span>
+                        <select class="bg-yellow-600 rounded px-2">
+                            ${Array(5).fill(0).map((_, i) => `
+                                <option value="${i + 1}" ${(command as LoopCommand).repeats === i + 1 ? 'selected' : ''}>
+                                    ${i + 1}
+                                </option>
+                            `).join('')}
+                        </select>
+                        <span>times</span>
+                    </div>
+                    <div class="nested-area ml-4 mt-2 border-l-2 border-yellow-400 pl-4 min-h-[50px]"></div>
+                `;
+
+                const nestedArea = div.querySelector('.nested-area') as HTMLElement;
+                if (nestedArea) {
+                    // Render existing children
+                    (command as LoopCommand).children.forEach(childId => {
+                        const childCmd = getCommandById(childId);
+                        if (childCmd) {
+                            const childDiv = document.createElement('div');
+                            childDiv.className = `${childCmd.color} text-white p-4 rounded-lg mb-2 transition-all duration-200`;
+                            childDiv.textContent = childCmd.label;
+                            childDiv.setAttribute('data-command', childCmd.id);
+                            nestedArea.appendChild(childDiv);
+                        }
+                    });
+
+                    new Sortable(nestedArea, {
+                        group: 'commands',
+                        animation: 150,
+                        onAdd: (evt) => {
+                            const cmdId = evt.item.getAttribute('data-command');
+                            if (cmdId) {
+                                (command as LoopCommand).children.push(cmdId);
+                                console.log('Loop children:', (command as LoopCommand).children);
+                            }
+                        },
+                        onRemove: (evt) => {
+                            (command as LoopCommand).children = 
+                                (command as LoopCommand).children.filter((_, i) => i !== evt.oldIndex);
+                        },
+                        onSort: function(evt) {
+                            const items = Array.from(nestedArea.children);
+                            const newChildren = items
+                                .map(el => el.getAttribute('data-command'))
+                                .filter(Boolean) as string[];
+                            (command as LoopCommand).children = newChildren;
+                        }
+                    });
+                }
+
+                const select = div.querySelector('select');
+                select?.addEventListener('change', (e) => {
+                    (command as LoopCommand).repeats = parseInt((e.target as HTMLSelectElement).value);
+                });
+            } else {
+                div.className = `${command.color} text-white p-4 rounded-lg mb-2 transition-all duration-200`;
+                div.textContent = command.label;
+            }
+            
+            div.setAttribute('data-command', command.id);
+            div.setAttribute('data-index', index.toString());
+            
+            if ($activeCommandIndex === index) {
+                div.classList.add('command-active');
+            }
+            
+            programArea.appendChild(div);
+        }
+    });
+}
 
     function clearProgram() {
+        programBlocks.forEach(blockId => {
+            const command = getCommandById(blockId);
+            if (command?.type === 'loop') {
+                (command as LoopCommand).children = [];
+                (command as LoopCommand).repeats = 2;
+            }
+        });
         programBlocks = [];
+        if (programArea) {
+            while (programArea.firstChild) {
+                programArea.firstChild.remove();
+            }
+        }
     }
 
     function toggleTheme() {

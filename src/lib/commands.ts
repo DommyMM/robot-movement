@@ -8,12 +8,24 @@ export interface Character {
     isHittingBounds: boolean;
 }
 
-export interface Command {
+export interface BaseCommand {
     id: string;
     label: string;
+    color: string;
     action: (character: Character) => Promise<void>;
-    color?: string;
 }
+
+export interface BasicCommand extends BaseCommand {
+    type: 'basic';
+}
+
+export interface LoopCommand extends BaseCommand {
+    type: 'loop';
+    repeats: number;
+    children: string[];
+}
+
+export type Command = BasicCommand | LoopCommand;
 
 export const CELL_SIZE = 50;
 export const GRID_COLS = 16;
@@ -63,9 +75,10 @@ function isOutOfBounds(x: number, y: number): boolean {
     return x < BOUNDS.minX || x > BOUNDS.maxX || y < BOUNDS.minY || y > BOUNDS.maxY;
 }
 
-export const commands: Command[] = [
+const basicCommands: BasicCommand[] = [
     {
         id: 'moveForward',
+        type: 'basic',
         label: 'Move Forward',
         action: async (char) => {
             const { dx, dy } = getMovementDeltas(char.angle);
@@ -77,15 +90,15 @@ export const commands: Command[] = [
                 await wait(200);
                 character.update(c => ({ ...c, isHittingBounds: false }));
             } else {
-                char.x = nextX;
-                char.y = nextY;
+                character.update(c => ({ ...c, x: nextX, y: nextY }));
             }
             await wait(500);
         },
         color: 'bg-blue-500'
     },
-    {
+        {
         id: 'moveBack',
+        type: 'basic',
         label: 'Move Back',
         action: async (char) => {
             const { dx, dy } = getMovementDeltas(char.angle);
@@ -97,8 +110,7 @@ export const commands: Command[] = [
                 await wait(200);
                 character.update(c => ({ ...c, isHittingBounds: false }));
             } else {
-                char.x = nextX;
-                char.y = nextY;
+                character.update(c => ({ ...c, x: nextX, y: nextY }));
             }
             await wait(500);
         },
@@ -106,15 +118,17 @@ export const commands: Command[] = [
     },
     {
         id: 'turnRight',
+        type: 'basic',
         label: 'Turn Right',
         action: async (char) => {
-            char.angle += 90;
+            character.update(c => ({ ...c, angle: c.angle + 90 }));
             await wait(500);
         },
         color: 'bg-purple-500'
     },
     {
         id: 'turnLeft',
+        type: 'basic',
         label: 'Turn Left',
         action: async (char) => {
             char.angle -= 90;
@@ -124,22 +138,46 @@ export const commands: Command[] = [
     }
 ];
 
+const loopCommand: LoopCommand = {
+    id: 'loop',
+    type: 'loop',
+    label: 'Repeat',
+    repeats: 2,
+    children: [],
+    color: 'bg-yellow-500',
+    action: async (char) => {
+        const currentCommand = getCommandById('loop') as LoopCommand;
+        for (let i = 0; i < currentCommand.repeats; i++) {
+            for (const childId of currentCommand.children) {
+                const cmd = getCommandById(childId);
+                if (cmd) await cmd.action(char);
+            }
+        }
+    }
+};
+
+export const commands: Command[] = [...basicCommands, loopCommand];
+
 export async function executeCommands(commandIds: string[]) {
     try {
         for (let i = 0; i < commandIds.length; i++) {
             activeCommandIndex.set(i);
             const command = getCommandById(commandIds[i]);
-            if (command) {
-                character.update(c => ({ ...c, isMoving: true }));
+            if (!command) continue;
+
+            if (command.type === 'loop') {
+                for (let j = 0; j < command.repeats; j++) {
+                    for (const childId of command.children) {
+                        const childCmd = getCommandById(childId);
+                        if (childCmd) await childCmd.action(get(character));
+                    }
+                }
+            } else {
                 await command.action(get(character));
-                character.update(c => ({ ...c, isMoving: false }));
             }
         }
-    } catch (error) {
-        console.error('Error executing commands:', error);
     } finally {
         activeCommandIndex.set(-1);
-        character.update(c => ({ ...c, isMoving: false }));
     }
 }
 
