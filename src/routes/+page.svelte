@@ -1,7 +1,7 @@
 <script lang="ts">
     import Sortable from 'sortablejs';
     import { onMount } from 'svelte';
-    import { commands, getCommandById, executeCommands, character } from '$lib/commands';
+    import { commands, getCommandById, executeCommands, character, activeCommandIndex } from '$lib/commands';
     import { darkMode } from '$lib/theme';
     import Grid from '$lib/Grid.svelte';
 
@@ -52,9 +52,9 @@
                 const item = evt.item;
                 item.classList.remove('removing');
             },
-            onSort: function() {
-                const newBlocks = Array.from(programArea.querySelectorAll('[data-command]'))
-                    .map(el => el.getAttribute('data-command') || '');
+            onSort: function(evt) {
+                const items = Array.from(programArea.children);
+                const newBlocks = items.map(el => el.getAttribute('data-command')).filter(Boolean) as string[];
                 if (JSON.stringify(newBlocks) !== JSON.stringify(programBlocks)) {
                     programBlocks = newBlocks;
                 }
@@ -66,23 +66,33 @@
         });
     });
 
+    // Update program area when programBlocks changes
     $: if (programArea && programBlocks) {
         while (programArea.firstChild) {
             programArea.firstChild.remove();
         }
-        programBlocks.forEach(blockId => {
+        programBlocks.forEach((blockId, index) => {
             const command = getCommandById(blockId);
             if (command) {
                 const div = document.createElement('div');
-                div.className = `${command.color} text-white p-4 rounded-lg mb-2`;
+                div.className = `${command.color} text-white p-4 rounded-lg mb-2 transition-all duration-200`;
                 div.setAttribute('data-command', command.id);
+                div.setAttribute('data-index', index.toString());
                 div.textContent = command.label;
+                
+                // Subscribe to activeCommandIndex changes
+                const unsubscribe = activeCommandIndex.subscribe(activeIndex => {
+                    if (activeIndex === index) {
+                        div.classList.add('command-active');
+                    } else {
+                        div.classList.remove('command-active');
+                    }
+                });
+                
                 programArea.appendChild(div);
             }
         });
     }
-
-    $: programBlockCommands = programBlocks.map(id => getCommandById(id));
 
     function clearProgram() {
         programBlocks = [];
@@ -146,8 +156,7 @@
                         Clear All
                     </button>
                 </div>
-                <div bind:this={programArea}
-                class={`min-h-[200px] border-2 border-dashed rounded-lg p-4 mb-4 ${$darkMode ? 'border-gray-600' : 'border-gray-300'}`}>
+                <div bind:this={programArea} class={`min-h-[200px] border-2 border-dashed rounded-lg p-4 mb-4 ${$darkMode ? 'border-gray-600' : 'border-gray-300'}`}>
                 </div>
             </div>
         </div>

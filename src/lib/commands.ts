@@ -31,6 +31,8 @@ export const character = writable<Character>({
     isHittingBounds: false
 });
 
+export const activeCommandIndex = writable<number>(-1);
+
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const BOUNDS = {
@@ -124,8 +126,9 @@ export const commands: Command[] = [
 
 export async function executeCommands(commandIds: string[]) {
     try {
-        for (const id of commandIds) {
-            const command = getCommandById(id);
+        for (let i = 0; i < commandIds.length; i++) {
+            activeCommandIndex.set(i);
+            const command = getCommandById(commandIds[i]);
             if (command) {
                 character.update(c => ({ ...c, isMoving: true }));
                 await command.action(get(character));
@@ -134,6 +137,8 @@ export async function executeCommands(commandIds: string[]) {
         }
     } catch (error) {
         console.error('Error executing commands:', error);
+    } finally {
+        activeCommandIndex.set(-1);
         character.update(c => ({ ...c, isMoving: false }));
     }
 }
