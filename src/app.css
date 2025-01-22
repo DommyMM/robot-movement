@@ -1,0 +1,28 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+.removing {
+    animation: removal 0.3s ease-out;
+    border: 2px solid rgb(239 68 68) !important;
+}
+
+@keyframes removal {
+    to {
+        transform: translateX(200px);
+        opacity: 0;
+    }
+}
+
+.shake {
+    animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+    border: 2px solid rgb(239 68 68);
+    transition: border-color 0.2s;
+}
+
+@keyframes shake {
+    10%, 90% { transform: translate3d(-2px, 0, 0) rotate(var(--rotation)); }
+    20%, 80% { transform: translate3d(4px, 0, 0) rotate(var(--rotation)); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0) rotate(var(--rotation)); }
+    40%, 60% { transform: translate3d(4px, 0, 0) rotate(var(--rotation)); }
+}
