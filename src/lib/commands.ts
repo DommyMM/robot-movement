@@ -132,7 +132,7 @@ const basicCommands: BasicCommand[] = [
         type: 'basic',
         label: 'Turn Left',
         action: async (char) => {
-            char.angle -= 90;
+            character.update(c => ({ ...c, angle: c.angle - 90 }));
             await wait(500);
         },
         color: 'bg-violet-500'
@@ -145,7 +145,7 @@ const loopCommand: LoopCommand = {
     label: 'Repeat',
     repeats: 2,
     children: [],
-    color: 'bg-yellow-500',
+    color: 'bg-cyan-500',
     action: async (char) => {
         const currentCommand = getCommandById('loop') as LoopCommand;
         for (let i = 0; i < currentCommand.repeats; i++) {
