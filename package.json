@@ -35,7 +35,6 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
-		"sortablejs": "^1.15.6",
-		"svelte-sound": "^0.6.0"
+		"sortablejs": "^1.15.6"
 	}
 }

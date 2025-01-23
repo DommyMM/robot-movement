@@ -30,13 +30,13 @@
 
         switch (selectedLanguage) {
             case 'python':
-                code = "def move():\n";
+                code = "def commands():\n";
                 break;
             case 'cpp':
-                code = "void move() {\n";
+                code = "void commands() {\n";
                 break;
             case 'java':
-                code = "public class Robot {\n    public void move() {\n";
+                code = "public class Robot {\n    public void commands() {\n";
                 indentLevel = 2;
                 break;
         }
@@ -85,6 +85,40 @@
         
         return code.trim();
     }
+
+    function generateExplanation(blocks: string[]): string[] {
+        let explanations: string[] = [];
+        
+        for (const blockId of blocks) {
+            const command = getCommandById(blockId);
+            if (!command) continue;
+            
+            if (command.type === 'loop') {
+                const loopCmd = command as LoopCommand;
+                explanations.push(`Repeat x${loopCmd.repeats}: {`);
+                if (loopCmd.children.length > 0) {
+                    explanations.push(...generateExplanation(loopCmd.children).map(exp => `  ${exp}`));
+                }
+                explanations.push('}');
+            } else {
+                switch (command.id) {
+                    case 'moveForward':
+                        explanations.push('direction.move(+1)');
+                        break;
+                    case 'moveBack':
+                        explanations.push('direction.move(-1)');
+                        break;
+                    case 'turnRight':
+                        explanations.push('rotation += 90°');
+                        break;
+                    case 'turnLeft':
+                        explanations.push('rotation -= 90°');
+                        break;
+                }
+            }
+        }
+        return explanations;
+    }
 </script>
 
 <div class={`p-6 rounded-lg shadow-lg transition-all duration-200 ${$darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -101,5 +135,15 @@
             <option value="java">Java</option>
         </select>
     </div>
-    <pre class={`font-mono text-sm p-4 rounded-lg h-[155px] overflow-auto ${$darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-800'}`}>{generateCode(programBlocks)}</pre>
+    <div class="grid grid-cols-2 gap-4">
+        <pre class={`font-mono text-sm p-4 rounded-lg h-[155px] overflow-auto ${$darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-800'}`}>{generateCode(programBlocks)}</pre>
+        <div class={`text-sm p-4 rounded-lg h-[155px] overflow-auto ${$darkMode ? 'bg-gray-900 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+            {#each generateExplanation(programBlocks) as explanation}
+                <div class="mb-2">{explanation}</div>
+            {/each}
+            {#if programBlocks.length === 0}
+                <div class="italic">Add blocks to see explanations</div>
+            {/if}
+        </div>
+    </div>
 </div>
