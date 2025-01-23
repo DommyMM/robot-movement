@@ -1,7 +1,7 @@
 <script lang="ts">
     import Sortable from 'sortablejs';
     import { onMount } from 'svelte';
-    import { commands, getCommandById, executeCommands, character, activeCommandIndex, type Command, type LoopCommand } from '$lib/commands';
+    import { commands, getCommandById, executeCommands, character, activeCommandIndex, activeNestedIndex, type LoopCommand } from '$lib/commands';
     import { darkMode } from '$lib/theme';
     import Grid from '$lib/Grid.svelte';
 
@@ -64,9 +64,28 @@
                     const removedIndex = evt.oldIndex;
                     const removedCommand = getCommandById(programBlocks[removedIndex]);
                     if (removedCommand?.type === 'loop') {
-                        (removedCommand as LoopCommand).children = [];
+                        const loopCmd = removedCommand as LoopCommand;
+                        loopCmd.children = [];
+                        loopCmd.repeats = 2;
+                        loopCmd.currentIteration = undefined;
+                        const badge = document.getElementById(`badge-${loopCmd.id}`);
+                        if (badge) {
+                            badge.className = 'bg-gray-600 px-2 py-1 rounded text-sm';
+                            badge.textContent = `0/${loopCmd.repeats}`;
+                        }
                     }
                     programBlocks = programBlocks.filter((_, i) => i !== removedIndex);
+                }
+            },
+            onAdd: function(evt) {
+                const commandId = evt.item.getAttribute('data-command');
+                if (commandId) {
+                    const command = getCommandById(commandId);
+                    if (command?.type === 'loop') {
+                        (command as LoopCommand).children = [];
+                        (command as LoopCommand).repeats = 2;
+                        (command as LoopCommand).currentIteration = undefined;
+                    }
                 }
             }
         });
@@ -84,30 +103,42 @@
             if (command.type === 'loop') {
                 div.className = `${command.color} p-4 rounded-lg mb-2 transition-all duration-200`;
                 div.innerHTML = `
-                    <div class="flex items-center gap-2 text-white">
-                        <span>Repeat</span>
-                        <select class="bg-yellow-600 rounded px-2">
-                            ${Array(5).fill(0).map((_, i) => `
-                                <option value="${i + 1}" ${(command as LoopCommand).repeats === i + 1 ? 'selected' : ''}>
-                                    ${i + 1}
-                                </option>
-                            `).join('')}
-                        </select>
-                        <span>times</span>
+                    <div class="flex items-center justify-between text-white mb-2">
+                        <div class="flex items-center gap-2">
+                            <span>Repeat</span>
+                            <select class="bg-yellow-600 rounded px-2">
+                                ${Array(5).fill(0).map((_, i) => `
+                                    <option value="${i + 1}" ${(command as LoopCommand).repeats === i + 1 ? 'selected' : ''}>
+                                        ${i + 1}
+                                    </option>
+                                `).join('')}
+                            </select>
+                            <span>times</span>
+                        </div>
+                        <div id="badge-${command.id}" class="bg-gray-600 px-2 py-1 rounded text-sm">
+                            0/${(command as LoopCommand).repeats}
+                        </div>
                     </div>
                     <div class="nested-area ml-4 mt-2 border-l-2 border-yellow-400 pl-4 min-h-[50px]"></div>
                 `;
 
                 const nestedArea = div.querySelector('.nested-area') as HTMLElement;
                 if (nestedArea) {
-                    // Render existing children
-                    (command as LoopCommand).children.forEach(childId => {
+                    (command as LoopCommand).children.forEach((childId, childIndex) => {
                         const childCmd = getCommandById(childId);
                         if (childCmd) {
                             const childDiv = document.createElement('div');
                             childDiv.className = `${childCmd.color} text-white p-4 rounded-lg mb-2 transition-all duration-200`;
                             childDiv.textContent = childCmd.label;
                             childDiv.setAttribute('data-command', childCmd.id);
+                            childDiv.setAttribute('data-nested-index', childIndex.toString());
+                            
+                            if ($activeNestedIndex === childIndex) {
+                                childDiv.classList.add('nested-active');
+                            } else {
+                                childDiv.classList.remove('nested-active');
+                            }
+                            
                             nestedArea.appendChild(childDiv);
                         }
                     });

@@ -23,6 +23,7 @@ export interface LoopCommand extends BaseCommand {
     type: 'loop';
     repeats: number;
     children: string[];
+    currentIteration?: number;
 }
 
 export type Command = BasicCommand | LoopCommand;
@@ -157,21 +158,36 @@ const loopCommand: LoopCommand = {
 };
 
 export const commands: Command[] = [...basicCommands, loopCommand];
+export const activeNestedIndex = writable<number>(-1);
 
 export async function executeCommands(commandIds: string[]) {
+    async function updateBadgeState(id: string, iteration: number, total: number, active: boolean) {
+        const badge = document.getElementById(`badge-${id}`);
+        if (badge) {
+            badge.className = `${active ? 'bg-green-600' : 'bg-gray-600'} px-2 py-1 rounded text-sm`;
+            badge.textContent = `${iteration}/${total}`;
+        }
+    }
     try {
         for (let i = 0; i < commandIds.length; i++) {
             activeCommandIndex.set(i);
             const command = getCommandById(commandIds[i]);
             if (!command) continue;
-
             if (command.type === 'loop') {
+                await updateBadgeState(command.id, 0, command.repeats, false);
                 for (let j = 0; j < command.repeats; j++) {
-                    for (const childId of command.children) {
-                        const childCmd = getCommandById(childId);
+                    command.currentIteration = j + 1;
+                    await updateBadgeState(command.id, j + 1, command.repeats, true);
+                    
+                    for (let k = 0; k < command.children.length; k++) {
+                        activeNestedIndex.set(k);
+                        const childCmd = getCommandById(command.children[k]);
                         if (childCmd) await childCmd.action(get(character));
                     }
+                    activeNestedIndex.set(-1);
                 }
+                await updateBadgeState(command.id, 0, command.repeats, false);
+                command.currentIteration = undefined;
             } else {
                 await command.action(get(character));
             }
